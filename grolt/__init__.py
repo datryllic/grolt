@@ -346,12 +346,20 @@ class Neo4jMachine(object):
         log.error("Could not open connection to %s (%r)", profile, errors)
         raise ConnectionUnavailable("Could not open connection")
 
+    def _poll_http(self):
+        """Use official neo4j python driver with http to check bolt interface"""
+        ...
+
+    def _poll_bolt(self):
+        """Use official neo4j python driver with bolt to check bolt interface"""
+        ...
+
     def ping(self, timeout):
         try:
-            cx = self._poll_connection("bolt", timeout=timeout)
+            cx = self._poll_bolt()
             if cx is not None:
                 cx.close()
-            cx = self._poll_connection("http", timeout=timeout)
+            cx = self._poll_http()
             if cx is not None:
                 cx.close()
             log.info("Machine {!r} available".format(self.spec.fq_name))
