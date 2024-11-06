@@ -143,7 +143,6 @@ class Neo4jMachineSpec(object):
     # Base config for all machines. This can be overridden by
     # individual instances.
     config = {
-        "dbms.backup.enabled": "false",
         "dbms.transaction.bookmark_ready_timeout": "5s",
     }
 
@@ -174,8 +173,6 @@ class Neo4jMachineSpec(object):
             "localhost:{}".format(self.http_port)
         self.config["dbms.connector.https.advertised_address"] = \
             "localhost:{}".format(self.https_port)
-        self.config["dbms.routing.advertised_address"] = \
-            self.bolt_internal_address
         if self.dir_spec and self.dir_spec.certificates_dir and not is_legacy_image(self.image):
             self.config.update({
                 "dbms.ssl.policy.bolt.enabled": True,
