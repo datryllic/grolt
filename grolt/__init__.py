@@ -32,6 +32,7 @@ from xml.etree import ElementTree
 from webbrowser import open as open_browser
 
 import click
+import requests
 from click import BadParameter, ClickException
 from docker import DockerClient
 from docker.errors import APIError, ImageNotFound
@@ -40,6 +41,8 @@ from py2neo import ServiceProfile, ConnectionProfile, ConnectionUnavailable
 from py2neo.addressing import Address
 from py2neo.client import Connector, Connection
 from packaging.version import InvalidVersion
+
+from neo4j import GraphDatabase
 
 from six.moves import input
 
@@ -330,11 +333,14 @@ class Neo4jMachine(object):
         wait = 0.1
         while again:
             try:
-                cx = Connection.open(profile)
+                if port_name == 'bolt':
+                    cx = self._poll_bolt(profile)
+                elif port_name == 'http':
+                    cx = self._poll_http(profile)
             except InvalidVersion as e:
                 log.info("Encountered invalid Neo4j version '%s'. Continuing anyway (this is a dev tool)", e)
                 return None
-            except ConnectionUnavailable as e:
+            except Exception as e:
                 errors.add(" ".join(map(str, e.args)))
             else:
                 if cx:
@@ -346,14 +352,28 @@ class Neo4jMachine(object):
         log.error("Could not open connection to %s (%r)", profile, errors)
         raise ConnectionUnavailable("Could not open connection")
 
+    def _poll_http(self, profile):
+        """Use requests to check http interface responsive"""
+
+        r = requests.post(f'{profile.uri}/db/neo4j/tx', auth=profile.auth)
+        assert 200 <= r.status_code < 299
+
+        return True
+
+    def _poll_bolt(self, profile):
+        """Use official neo4j python driver to check bolt interface responsive"""
+        profile = self.profiles['bolt']
+
+        with GraphDatabase.driver(profile.uri, auth=profile.auth) as driver:
+            with driver.session() as session:
+                session.run("SHOW FUNCTIONS YIELD *")
+
+        return True
+
     def ping(self, timeout):
         try:
             cx = self._poll_connection("bolt", timeout=timeout)
-            if cx is not None:
-                cx.close()
             cx = self._poll_connection("http", timeout=timeout)
-            if cx is not None:
-                cx.close()
             log.info("Machine {!r} available".format(self.spec.fq_name))
         except ConnectionUnavailable:
             log.info("Machine {!r} unavailable".format(self.spec.fq_name))
